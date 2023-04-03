@@ -64,6 +64,7 @@ export interface ClientOptions {
   timeout?: number;
   reconnect?: boolean;
   reconnectionAttempts?: number;
+  reconnectionCallback?: () => void | Promise<void>;
   connectionCallback?: (error: Error[], result?: any) => void;
   lazy?: boolean;
   inactivityTimeout?: number;
@@ -84,6 +85,7 @@ export class SubscriptionClient {
   private reconnectionAttempts: number;
   private backoff: any;
   private connectionCallback: any;
+  private reconnectionCallback?: () => void | Promise<void>;
   private eventEmitter: EventEmitterType;
   private lazy: boolean;
   private inactivityTimeout: number;
@@ -106,6 +108,7 @@ export class SubscriptionClient {
     webSocketProtocols?: string | string[],
   ) {
     const {
+      reconnectionCallback,
       connectionCallback = undefined,
       connectionParams = {},
       minTimeout = MIN_WS_TIMEOUT,
@@ -123,6 +126,7 @@ export class SubscriptionClient {
     }
 
     this.wsProtocols = webSocketProtocols || GRAPHQL_WS;
+    this.reconnectionCallback = reconnectionCallback;
     this.connectionCallback = connectionCallback;
     this.url = url;
     this.operations = {};
@@ -147,6 +151,10 @@ export class SubscriptionClient {
     if (!this.lazy) {
       this.connect();
     }
+  }
+
+  public setUrl(newUrl: string) {
+    this.url = newUrl;
   }
 
   public get status() {
@@ -518,7 +526,8 @@ export class SubscriptionClient {
     this.clearTryReconnectTimeout();
 
     const delay = this.backoff.duration();
-    this.tryReconnectTimeoutId = setTimeout(() => {
+    this.tryReconnectTimeoutId = setTimeout(async () => {
+      await this.reconnectionCallback?.();
       this.connect();
     }, delay);
   }
